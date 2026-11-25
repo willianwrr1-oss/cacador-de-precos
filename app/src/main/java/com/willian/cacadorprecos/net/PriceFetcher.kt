@@ -7,6 +7,7 @@ import com.willian.cacadorprecos.data.Stores
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /** Busca os preços de um produto nas duas frentes: links cadastrados e busca em grandes lojas. */
 object PriceFetcher {
@@ -48,7 +49,12 @@ object PriceFetcher {
                 if (st.name in s.disabledStores || st.name in comLink) continue
                 try {
                     val url = st.searchUrl(p.searchQuery())
-                    val hits = PriceParser.parseSearch(Http.get(url), url, st)
+                    val html = try {
+                        Http.get(url)
+                    } catch (e: Exception) {
+                        WebHtml.get(url)
+                    }
+                    val hits = PriceParser.parseSearch(html, url, st)
                         .filter { PriceParser.matches(p.name, p.model, it.title) && plausivel(it.price, ref) }
                     val best = hits.minByOrNull { it.price }
                     if (best != null) {
@@ -67,7 +73,7 @@ object PriceFetcher {
     }
 
     /** Lê um link cadastrado. No Mercado Livre tenta primeiro a API pública do anúncio, depois a página. */
-    private fun lerLink(store: String, url: String): PriceParser.PageInfo? {
+    private suspend fun lerLink(store: String, url: String): PriceParser.PageInfo? {
         var falha: Exception? = null
         val id = if (store == "Mercado Livre") MercadoLivre.itemId(url) else null
         if (id != null) {
@@ -85,6 +91,14 @@ object PriceFetcher {
             try {
                 val r = PriceParser.fromProductPage(Http.get(u))
                 if (r != null) return r
+            } catch (e: Exception) {
+                falha = e
+            }
+            // Bloqueio (403) ou preço montado por JavaScript: tenta como o navegador do celular
+            try {
+                val r = PriceParser.fromProductPage(WebHtml.get(u))
+                if (r != null) return r
+                falha = IOException("Preço não encontrado na página (navegador embutido)")
             } catch (e: Exception) {
                 falha = e
             }
