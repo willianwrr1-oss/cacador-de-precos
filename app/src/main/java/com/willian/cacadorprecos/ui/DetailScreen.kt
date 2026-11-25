@@ -62,6 +62,7 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
 
     var novoLink by remember { mutableStateOf("") }
     var erroLink by remember { mutableStateOf<String?>(null) }
+    var editando by remember { mutableStateOf<String?>(null) }
     var confirmarRemover by remember { mutableStateOf(false) }
     var descEd by remember(id) { mutableStateOf(p.name) }
     var modEd by remember(id) { mutableStateOf(p.model) }
@@ -301,8 +302,14 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                             Text(l.url, fontSize = 11.sp, color = Pal.Muted, maxLines = 1)
                         }
                         TextButton(onClick = {
+                            editando = l.url
+                            novoLink = l.url
+                            erroLink = null
+                        }) { Text("Editar", color = Pal.Teal) }
+                        TextButton(onClick = {
+                            if (editando == l.url) { editando = null; novoLink = "" }
                             Repo.editProduct(id) { pr -> pr.copy(links = pr.links.filter { it.url != l.url }) }
-                        }) { Text("Remover", color = Pal.Danger) }
+                        }) { Text("Excluir", color = Pal.Danger) }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -312,7 +319,7 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
-                    label = { Text("Endereço da página do produto") },
+                    label = { Text(if (editando != null) "Editando o link: altere o endereço" else "Endereço da página do produto") },
                     isError = erroLink != null,
                     supportingText = { if (erroLink != null) Text(erroLink ?: "") }
                 )
@@ -323,14 +330,27 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                         if (!(u.startsWith("http://") || u.startsWith("https://"))) {
                             erroLink = "Cole o endereço completo, começando com https://"
                         } else {
-                            Repo.editProduct(id) { it.copy(links = it.links + ProductLink(Stores.nameFor(u), u)) }
+                            val antigo = editando
+                            val novo = ProductLink(Stores.nameFor(u), u)
+                            Repo.editProduct(id) { pr ->
+                                val resto = if (antigo == null) pr.links else pr.links.filter { it.url != antigo }
+                                pr.copy(links = resto.filter { it.url != u } + novo)
+                            }
                             novoLink = ""
+                            editando = null
                             Scheduler.runOne(ctx, id)
+                            Toast.makeText(ctx, "Link salvo. Buscando preços…", Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("Adicionar link", fontWeight = FontWeight.Bold) }
+                ) { Text(if (editando != null) "Salvar link" else "Adicionar link", fontWeight = FontWeight.Bold) }
+                if (editando != null) {
+                    TextButton(
+                        onClick = { editando = null; novoLink = ""; erroLink = null },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Cancelar edição") }
+                }
             }
 
             // ---- histórico ----

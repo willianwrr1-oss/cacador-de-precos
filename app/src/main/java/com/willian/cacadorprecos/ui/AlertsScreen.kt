@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -14,12 +16,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,18 +43,63 @@ import com.willian.cacadorprecos.data.Repo
 @Composable
 fun AlertsScreen(state: AppState, onOpen: (String) -> Unit) {
     val naoLidos = state.alerts.count { it.unread }
+    var escolhendo by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    var confirmarTudo by remember { mutableStateOf(false) }
+    var marcados by remember { mutableStateOf(setOf<String>()) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Header(
             title = "Alertas",
             subtitle = "Queda de preço, preço-alvo e menor preço registrado.",
             trailing = {
-                if (naoLidos > 0) {
-                    TextButton(onClick = { Repo.markAlertsRead() }) {
-                        Text("Marcar como lidos", color = Pal.Soft, fontWeight = FontWeight.Bold)
+                Row {
+                    if (naoLidos > 0 && !escolhendo) {
+                        TextButton(onClick = { Repo.markAlertsRead() }) {
+                            Text("Lidos", color = Pal.Soft, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (state.alerts.isNotEmpty() && !escolhendo) {
+                        TextButton(onClick = { menu = true }) {
+                            Text("Limpar", color = Pal.Soft, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
         )
+        if (escolhendo) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    marcados.size.toString() + " selecionado(s)", Modifier.weight(1f),
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold
+                )
+                TextButton(onClick = {
+                    marcados = if (marcados.size == state.alerts.size) emptySet() else state.alerts.map { it.id }.toSet()
+                }) { Text(if (marcados.size == state.alerts.size) "Desmarcar" else "Marcar todos", color = Pal.Teal) }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { escolhendo = false; marcados = emptySet() },
+                    modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp)
+                ) { Text("Cancelar", fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = {
+                        Repo.removeAlerts(marcados)
+                        escolhendo = false
+                        marcados = emptySet()
+                    },
+                    enabled = marcados.isNotEmpty(),
+                    modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Pal.Danger, contentColor = Color.White)
+                ) { Text("Excluir", fontWeight = FontWeight.Bold) }
+            }
+        }
         Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (state.alerts.isEmpty()) {
                 AppCard {
@@ -63,7 +121,14 @@ fun AlertsScreen(state: AppState, onOpen: (String) -> Unit) {
                     "alvo" -> Pal.BlueFg
                     else -> Pal.GoldFg
                 }
-                AppCard(onClick = { onOpen(a.productId) }, padding = 14.dp) {
+                AppCard(
+                    onClick = {
+                        if (escolhendo) {
+                            marcados = if (a.id in marcados) marcados - a.id else marcados + a.id
+                        } else onOpen(a.productId)
+                    },
+                    padding = 14.dp
+                ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                         Box(
                             Modifier.size(40.dp).background(bg, RoundedCornerShape(12.dp)),
@@ -76,12 +141,48 @@ fun AlertsScreen(state: AppState, onOpen: (String) -> Unit) {
                             Text(a.text, fontSize = 12.sp, color = Pal.Muted, lineHeight = 17.sp, modifier = Modifier.padding(top = 2.dp))
                             Text(Fmt.time(a.time), fontSize = 12.sp, color = Pal.Muted, modifier = Modifier.padding(top = 6.dp))
                         }
-                        if (a.unread) {
+                        if (escolhendo) {
+                            Checkbox(
+                                checked = a.id in marcados,
+                                onCheckedChange = { c -> marcados = if (c) marcados + a.id else marcados - a.id },
+                                colors = CheckboxDefaults.colors(checkedColor = Pal.Teal)
+                            )
+                        } else if (a.unread) {
                             Box(Modifier.padding(top = 5.dp).size(10.dp).background(Pal.Teal, CircleShape))
                         }
                     }
                 }
             }
         }
+    }
+    if (menu) {
+        AlertDialog(
+            onDismissRequest = { menu = false },
+            title = { Text("Limpar alertas") },
+            text = { Text("Escolha o que fazer com os alertas da tela.") },
+            confirmButton = {
+                TextButton(onClick = { menu = false; confirmarTudo = true }) {
+                    Text("Limpar tudo", color = Pal.Danger, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { menu = false; escolhendo = true; marcados = emptySet() }) {
+                    Text("Selecionar", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+    if (confirmarTudo) {
+        AlertDialog(
+            onDismissRequest = { confirmarTudo = false },
+            title = { Text("Limpar todos os alertas?") },
+            text = { Text("Os " + state.alerts.size + " alertas serão apagados. O histórico de preços dos produtos não muda.") },
+            confirmButton = {
+                TextButton(onClick = { Repo.clearAlerts(); confirmarTudo = false }) {
+                    Text("Limpar tudo", color = Pal.Danger)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmarTudo = false }) { Text("Cancelar") } }
+        )
     }
 }

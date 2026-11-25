@@ -57,6 +57,10 @@ object Repo {
 
     fun setSettings(f: (Settings) -> Settings) = update { it.copy(settings = f(it.settings)) }
 
+    fun clearAlerts() = update { s -> s.copy(alerts = emptyList()) }
+
+    fun removeAlerts(ids: Set<String>) = update { s -> s.copy(alerts = s.alerts.filter { it.id !in ids }) }
+
     fun markAlertsRead() = update { s -> s.copy(alerts = s.alerts.map { it.copy(unread = false) }) }
 
     fun clearHistory() = update { s ->
