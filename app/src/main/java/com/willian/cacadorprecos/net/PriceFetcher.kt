@@ -28,7 +28,7 @@ object PriceFetcher {
                 if (l.store in s.disabledStores) continue
                 comLink.add(l.store)
                 try {
-                    val info = PriceParser.fromProductPage(Http.get(l.url))
+                    val info = lerLink(l.store, l.url)
                     if (info == null) {
                         status[l.store] = StoreStatus(false, now, "Preço não encontrado na página")
                     } else {
@@ -64,6 +64,33 @@ object PriceFetcher {
             }
         }
         Result(quotes, status)
+    }
+
+    /** Lê um link cadastrado. No Mercado Livre tenta primeiro a API pública do anúncio, depois a página. */
+    private fun lerLink(store: String, url: String): PriceParser.PageInfo? {
+        var falha: Exception? = null
+        val id = if (store == "Mercado Livre") MercadoLivre.itemId(url) else null
+        if (id != null) {
+            try {
+                val r = MercadoLivre.viaApi(id)
+                if (r != null) return r
+            } catch (e: Exception) {
+                falha = e
+            }
+        }
+        val paginas = ArrayList<String>()
+        paginas.add(url)
+        if (id != null) paginas.add("https://produto.mercadolivre.com.br/MLB-" + id)
+        for (u in paginas) {
+            try {
+                val r = PriceParser.fromProductPage(Http.get(u))
+                if (r != null) return r
+            } catch (e: Exception) {
+                falha = e
+            }
+        }
+        if (falha != null) throw falha
+        return null
     }
 
     /** Descarta preços muito fora do que o produto costuma custar (acessórios, peças, erros). */

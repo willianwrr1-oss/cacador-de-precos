@@ -128,7 +128,12 @@ object PriceParser {
         )
         for (sel in sels) {
             val el = doc.selectFirst(sel) ?: continue
-            val v = parseMoney(el.attr("content").ifBlank { el.text() })
+            var txt = el.attr("content").ifBlank { el.text() }
+            if (sel.contains("andes-money-amount__fraction")) {
+                val cents = el.parent()?.selectFirst(".andes-money-amount__cents")?.text()
+                if (!cents.isNullOrBlank()) txt = txt + "," + cents
+            }
+            val v = parseMoney(txt)
             if (v != null) return PageInfo(title, v)
         }
 
@@ -136,6 +141,8 @@ object PriceParser {
         val bruto = doc.select("script").joinToString("\n") { it.data() }
         val padroes = listOf(
             Regex(""""current_price"\s*:\s*([0-9]+(?:\.[0-9]+)?)"""),
+            Regex(""""price"\s*:\s*\{[^{}]*?"value"\s*:\s*([0-9]+(?:\.[0-9]+)?)"""),
+            Regex(""""amount"\s*:\s*([0-9]+(?:\.[0-9]+)?)"""),
             Regex(""""price"\s*:\s*([0-9]+(?:\.[0-9]+)?)[,}]""")
         )
         for (re in padroes) {
