@@ -19,7 +19,7 @@ import kotlin.coroutines.resumeWithException
  */
 object WebHtml {
 
-    private const val ESPERA_JS_MS = 3500L
+    private const val ESPERA_JS_MS = 5000L
 
     @SuppressLint("SetJavaScriptEnabled")
     suspend fun get(url: String): String = withTimeout(40_000) {
@@ -33,16 +33,24 @@ object WebHtml {
                     w.settings.javaScriptEnabled = true
                     w.settings.domStorageEnabled = true
                     w.settings.loadsImagesAutomatically = false
+                    // Sem a marca "wv" de WebView: algumas lojas mostram "abra no app" ou bloqueiam o navegador embutido
+                    w.settings.userAgentString = w.settings.userAgentString.replace("; wv", "")
                     var entregue = false
                     fun fechar() {
                         try { w.stopLoading(); w.destroy() } catch (e: Exception) { }
                     }
                     w.webViewClient = object : WebViewClient() {
+                        // Impede que a loja redirecione para o app dela (intent://, meli://...)
+                        override fun shouldOverrideUrlLoading(view: WebView, req: android.webkit.WebResourceRequest): Boolean {
+                            val sch = req.url.scheme ?: ""
+                            return !(sch == "http" || sch == "https")
+                        }
+
                         override fun onPageFinished(view: WebView, u: String) {
                             if (entregue) return
                             main.postDelayed({
                                 if (entregue) return@postDelayed
-                                view.evaluateJavascript("(function(){return document.documentElement.outerHTML;})()") { raw ->
+                                view.evaluateJavascript("(function(){return '<!--URL:' + location.href + '-->' + document.documentElement.outerHTML;})()") { raw ->
                                     if (entregue) return@evaluateJavascript
                                     entregue = true
                                     val html = try {

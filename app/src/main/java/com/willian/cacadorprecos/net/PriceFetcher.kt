@@ -117,7 +117,8 @@ object PriceFetcher {
                 val r = PriceParser.fromProductPage(html)
                 if (r != null) return r
                 val titulo = org.jsoup.Jsoup.parse(html).title().take(60)
-                falha = IOException("Preço não encontrado. Página aberta: \"" + titulo + "\"")
+                val aberta = Regex("""<!--URL:(.*?)-->""").find(html)?.groupValues?.get(1)?.take(70) ?: ""
+                falha = IOException("Preço não encontrado. Página aberta: \"" + titulo + "\" " + aberta)
             } catch (e: Exception) {
                 falha = e
             }

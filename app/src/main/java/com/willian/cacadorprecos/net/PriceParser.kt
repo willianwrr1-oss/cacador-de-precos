@@ -149,6 +149,16 @@ object PriceParser {
             val v = re.find(bruto)?.groupValues?.get(1)?.toDoubleOrNull()
             if (v != null && v > 1.0) return PageInfo(title, v)
         }
+        // Mercado Livre: preço por extenso para leitores de tela ("129 reais com 90 centavos")
+        val reExt = Regex("""(\d[\d.]*)\s+reais(?:\s+com\s+(\d{1,2})\s+centavos)?""")
+        val principal = doc.select(".ui-pdp-price__second-line [aria-label], .ui-pdp-price [aria-label], [data-testid=price-part] [aria-label]")
+        for (el in principal + doc.select("[aria-label*=reais]")) {
+            val m = reExt.find(el.attr("aria-label")) ?: continue
+            val inteiro = m.groupValues[1].replace(".", "")
+            val cent = m.groupValues[2].ifBlank { "0" }.padStart(2, '0')
+            val v = (inteiro + "." + cent).toDoubleOrNull()
+            if (v != null && v > 0) return PageInfo(title, v)
+        }
         val tw = parseMoney(doc.selectFirst("meta[name=twitter:data1]")?.attr("content"))
         if (tw != null) return PageInfo(title, tw)
         return null
