@@ -56,7 +56,24 @@ object Stores {
         ),
         StoreDef("Americanas", "americanas.com.br", { q -> "https://www.americanas.com.br/busca/" + Txt.slug(q) }),
         StoreDef("Casas Bahia", "casasbahia.com.br", { q -> "https://www.casasbahia.com.br/" + Txt.slug(q) + "/b" }),
-        StoreDef("Fast Shop", "fastshop.com.br", { q -> "https://www.fastshop.com.br/web/s/" + Txt.enc(q) })
+        StoreDef("Fast Shop", "fastshop.com.br", { q -> "https://www.fastshop.com.br/web/s/" + Txt.enc(q) }),
+        // Comparadores de preço (reúnem ofertas de várias lojas; ajudam quando uma loja bloqueia o app)
+        StoreDef(
+            "Buscapé", "buscape.com.br",
+            { q -> "https://www.buscape.com.br/search?q=" + Txt.enc(q) },
+            "[data-testid=\"product-card\"]",
+            "[data-testid=\"product-card::name\"], h2",
+            "[data-testid=\"product-card::price\"]",
+            "a[href]"
+        ),
+        StoreDef(
+            "Zoom", "zoom.com.br",
+            { q -> "https://www.zoom.com.br/search?q=" + Txt.enc(q) },
+            "[data-testid=\"product-card\"]",
+            "[data-testid=\"product-card::name\"], h2",
+            "[data-testid=\"product-card::price\"]",
+            "a[href]"
+        )
     )
 
     const val MARCA = "{busca}"

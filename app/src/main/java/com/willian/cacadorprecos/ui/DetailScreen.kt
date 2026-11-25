@@ -190,6 +190,12 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                         Spacer(Modifier.height(10.dp))
                         Rule()
                     }
+                    if (ofertas.any { it.store.endsWith("(similar)") }) {
+                        Text(
+                            "\"similar\" = anúncio parecido, mas sem o modelo no título. Confira antes de comprar; ele não dispara alerta se houver preço confirmado.",
+                            fontSize = 12.sp, color = Pal.Muted, lineHeight = 17.sp, modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
                     if (ofertas.size < 3) {
                         Text(
                             "Menos de 3 lojas com preço nesta busca." +

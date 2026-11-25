@@ -12,7 +12,8 @@ import java.io.IOException
 /** Busca os preços de um produto nas duas frentes: links cadastrados e busca em grandes lojas. */
 object PriceFetcher {
 
-    data class Quote(val store: String, val price: Double, val url: String, val title: String)
+    /** [similar] = anúncio parecido, mas sem o modelo no título (não dispara alerta sozinho). */
+    data class Quote(val store: String, val price: Double, val url: String, val title: String, val similar: Boolean = false)
 
     data class Result(val quotes: List<Quote>, val status: Map<String, StoreStatus>)
 
@@ -54,14 +55,21 @@ object PriceFetcher {
                     } catch (e: Exception) {
                         WebHtml.get(url)
                     }
-                    val hits = PriceParser.parseSearch(html, url, st)
-                        .filter { PriceParser.matches(p.name, p.model, it.title) && plausivel(it.price, ref) }
-                    val best = hits.minByOrNull { it.price }
+                    val todos = PriceParser.parseSearch(html, url, st).filter { plausivel(it.price, ref) }
+                    val exatos = todos.filter { PriceParser.matches(p.name, p.model, it.title) }
+                    val parecidos = if (exatos.isEmpty()) todos.filter { PriceParser.matches(p.name, "", it.title) } else emptyList()
+                    val best = exatos.minByOrNull { it.price }
+                    val similar = parecidos.minByOrNull { it.price }
                     if (best != null) {
                         quotes.add(Quote(st.name, best.price, best.url, best.title))
                         status[st.name] = StoreStatus(true, now, "OK")
+                    } else if (similar != null) {
+                        quotes.add(Quote(st.name + " (similar)", similar.price, similar.url, similar.title, true))
+                        status[st.name] = StoreStatus(true, now, "Só anúncio parecido, sem o modelo no título")
+                    } else if (todos.isEmpty()) {
+                        status[st.name] = StoreStatus(false, now, "Nenhum anúncio lido na página")
                     } else {
-                        status[st.name] = StoreStatus(false, now, "Produto não encontrado")
+                        status[st.name] = StoreStatus(false, now, todos.size.toString() + " anúncios, nenhum compatível")
                     }
                 } catch (e: Exception) {
                     status[st.name] = StoreStatus(false, now, erro(e))
@@ -96,9 +104,11 @@ object PriceFetcher {
             }
             // Bloqueio (403) ou preço montado por JavaScript: tenta como o navegador do celular
             try {
-                val r = PriceParser.fromProductPage(WebHtml.get(u))
+                val html = WebHtml.get(u)
+                val r = PriceParser.fromProductPage(html)
                 if (r != null) return r
-                falha = IOException("Preço não encontrado na página (navegador embutido)")
+                val titulo = org.jsoup.Jsoup.parse(html).title().take(60)
+                falha = IOException("Preço não encontrado. Página aberta: \"" + titulo + "\"")
             } catch (e: Exception) {
                 falha = e
             }

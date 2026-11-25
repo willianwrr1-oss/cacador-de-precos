@@ -38,7 +38,8 @@ object Checker {
         val p0 = before.products.firstOrNull { it.id == id } ?: return
         val res = PriceFetcher.fetch(p0, before.settings)
         val now = System.currentTimeMillis()
-        val best = res.quotes.minByOrNull { it.price }
+        // alerta e histórico usam anúncios confirmados pelo modelo; parecidos só entram se não houver nenhum
+        val best = res.quotes.filter { !it.similar }.minByOrNull { it.price } ?: res.quotes.minByOrNull { it.price }
         // um preço por loja (o menor de cada), do mais barato para o mais caro
         val ofertas = res.quotes.groupBy { it.store }
             .map { (_, qs) -> qs.minBy { it.price } }
