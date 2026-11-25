@@ -57,7 +57,7 @@ object PriceFetcher {
                     }
                     val todos = PriceParser.parseSearch(html, url, st).filter { plausivel(it.price, ref) }
                     val exatos = todos.filter { PriceParser.matches(p.name, p.model, it.title) }
-                    val parecidos = if (exatos.isEmpty()) todos.filter { PriceParser.matches(p.name, "", it.title) } else emptyList()
+                    val parecidos = if (exatos.isEmpty() && p.allowSimilar) todos.filter { PriceParser.similar(p.name, it.title) } else emptyList()
                     val best = exatos.minByOrNull { it.price }
                     val similar = parecidos.minByOrNull { it.price }
                     if (best != null) {
@@ -69,7 +69,10 @@ object PriceFetcher {
                     } else if (todos.isEmpty()) {
                         status[st.name] = StoreStatus(false, now, "Nenhum anúncio lido na página")
                     } else {
-                        status[st.name] = StoreStatus(false, now, todos.size.toString() + " anúncios, nenhum compatível")
+                        status[st.name] = StoreStatus(
+                            false, now,
+                            todos.size.toString() + " anúncios, nenhum com o modelo " + p.model + " no título"
+                        )
                     }
                 } catch (e: Exception) {
                     status[st.name] = StoreStatus(false, now, erro(e))
@@ -77,7 +80,13 @@ object PriceFetcher {
                 delay(800)
             }
         }
-        Result(quotes, status)
+        // Sem histórico, descarta preços muito abaixo dos demais (provável acessório ou outro produto)
+        val filtrados = if (ref == null && quotes.size >= 3) {
+            val ord = quotes.map { it.price }.sorted()
+            val mediana = ord[ord.size / 2]
+            quotes.filter { it.price >= mediana * 0.4 }
+        } else quotes
+        Result(filtrados, status)
     }
 
     /** Lê um link cadastrado. No Mercado Livre tenta primeiro a API pública do anúncio, depois a página. */

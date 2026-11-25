@@ -5,7 +5,9 @@ data class PricePoint(
     val time: Long,
     val price: Double,
     val store: String,
-    val url: String
+    val url: String,
+    /** Título do anúncio encontrado (para conferir se é o produto certo). */
+    val title: String = ""
 )
 
 /** Link de uma loja para acompanhar um produto (fonte cadastrada). */
@@ -29,6 +31,8 @@ data class Product(
     val compare: String = "ultimo",
     val searchRegistered: Boolean = true,
     val searchOpen: Boolean = true,
+    /** Aceitar anúncios parecidos quando nenhum traz o modelo no título. Desligado = só modelo exato. */
+    val allowSimilar: Boolean = false,
     val paused: Boolean = false,
     val links: List<ProductLink> = emptyList(),
     /** No máximo as 10 últimas leituras (a mais antiga primeiro). */

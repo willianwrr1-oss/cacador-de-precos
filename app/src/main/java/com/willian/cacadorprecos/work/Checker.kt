@@ -44,7 +44,7 @@ object Checker {
         val ofertas = res.quotes.groupBy { it.store }
             .map { (_, qs) -> qs.minBy { it.price } }
             .sortedBy { it.price }
-            .map { PricePoint(now, it.price, it.store, it.url) }
+            .map { PricePoint(now, it.price, it.store, it.url, it.title) }
         var fired: AlertItem? = null
 
         val falhas = res.status.entries.filter { !it.value.ok }
@@ -101,7 +101,7 @@ object Checker {
             if (last != null && last.price == q.price && last.store == q.store) {
                 hist.dropLast(1) + last.copy(time = now, url = q.url)
             } else {
-                hist + PricePoint(now, q.price, q.store, q.url)
+                hist + PricePoint(now, q.price, q.store, q.url, q.title)
             }
         // guarda só o período escolhido no cadastro (o menor valor histórico fica à parte)
         val limite = now - p.keepDays * 86_400_000L
@@ -111,7 +111,7 @@ object Checker {
 
         val oldLow = p.lowest
         val isNewLow = oldLow == null || q.price < oldLow.price
-        val low: PricePoint? = if (isNewLow) PricePoint(now, q.price, q.store, q.url) else oldLow
+        val low: PricePoint? = if (isNewLow) PricePoint(now, q.price, q.store, q.url, q.title) else oldLow
 
         val drop = base != null && q.price < base && q.price <= base * (1 - p.alertPct / 100.0)
         val alvo = p.targetPrice

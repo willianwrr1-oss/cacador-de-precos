@@ -63,6 +63,10 @@ object Repo {
 
     fun markAlertsRead() = update { s -> s.copy(alerts = s.alerts.map { it.copy(unread = false) }) }
 
+    fun clearProductHistory(id: String) = editProduct(id) {
+        it.copy(history = emptyList(), lowest = null, lastAlertPrice = null, lastError = null, offers = emptyList())
+    }
+
     fun clearHistory() = update { s ->
         s.copy(
             products = s.products.map {
@@ -105,10 +109,10 @@ object Repo {
     }
 
     private fun pointToJson(p: PricePoint): JSONObject =
-        JSONObject().put("t", p.time).put("p", p.price).put("s", p.store).put("u", p.url)
+        JSONObject().put("t", p.time).put("p", p.price).put("s", p.store).put("u", p.url).put("n", p.title)
 
     private fun pointFromJson(o: JSONObject): PricePoint =
-        PricePoint(o.optLong("t"), o.optDouble("p"), o.optString("s"), o.optString("u"))
+        PricePoint(o.optLong("t"), o.optDouble("p"), o.optString("s"), o.optString("u"), o.optString("n"))
 
     private fun productToJson(p: Product): JSONObject {
         val o = JSONObject()
@@ -122,6 +126,7 @@ object Repo {
         o.put("cmp", p.compare)
         o.put("reg", p.searchRegistered)
         o.put("open", p.searchOpen)
+        o.put("similar", p.allowSimilar)
         o.put("paused", p.paused)
         o.put("links", JSONArray().also { a ->
             p.links.forEach { a.put(JSONObject().put("s", it.store).put("u", it.url)) }
@@ -146,6 +151,7 @@ object Repo {
         compare = o.optString("cmp", "ultimo"),
         searchRegistered = o.optBoolean("reg", true),
         searchOpen = o.optBoolean("open", true),
+        allowSimilar = o.optBoolean("similar", false),
         paused = o.optBoolean("paused", false),
         links = o.optJSONArray("links").objs { ProductLink(it.optString("s"), it.optString("u")) },
         history = o.optJSONArray("hist").objs { pointFromJson(it) },

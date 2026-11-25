@@ -66,6 +66,7 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
     var erroLink by remember { mutableStateOf<String?>(null) }
     var editando by remember { mutableStateOf<String?>(null) }
     var confirmarRemover by remember { mutableStateOf(false) }
+    var confirmarLimpar by remember { mutableStateOf(false) }
     var descEd by remember(id) { mutableStateOf(p.name) }
     var modEd by remember(id) { mutableStateOf(p.model) }
     var catEd by remember(id) { mutableStateOf(p.category) }
@@ -175,7 +176,12 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                                 fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
                                 color = if (i == 0) Pal.Teal else Pal.Muted
                             )
-                            Text(o.store, Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Column(Modifier.weight(1f)) {
+                                Text(o.store, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                if (o.title.isNotBlank()) {
+                                    Text(o.title, fontSize = 11.sp, color = Pal.Muted, lineHeight = 15.sp, maxLines = 2)
+                                }
+                            }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(Fmt.money(o.price), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 if (i == 0) {
@@ -345,6 +351,13 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                     "Busca em grandes lojas", "Só varejistas de grande porte", p.searchOpen,
                     { v -> Repo.editProduct(id) { it.copy(searchOpen = v) } }
                 )
+                Rule()
+                SwitchRow(
+                    "Aceitar anúncios parecidos",
+                    "Desligado: só vale anúncio com o modelo " + p.model + " no título",
+                    p.allowSimilar,
+                    { v -> Repo.editProduct(id) { it.copy(allowSimilar = v) }; Scheduler.runOne(ctx, id) }
+                )
             }
 
             // ---- links ----
@@ -425,6 +438,11 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                         "Mostrando as 30 leituras mais recentes de " + p.history.size + ".",
                         fontSize = 12.sp, color = Pal.Muted, modifier = Modifier.padding(top = 4.dp)
                     )
+                }
+                if (p.history.isNotEmpty()) {
+                    TextButton(onClick = { confirmarLimpar = true }) {
+                        Text("Limpar histórico deste produto", color = Pal.Danger)
+                    }
                 }
                 if (p.history.isEmpty()) {
                     Text("Ainda sem leituras.", fontSize = 13.sp, color = Pal.Muted, modifier = Modifier.padding(top = 8.dp))
@@ -507,6 +525,21 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                 Text("Excluir produto", color = Pal.Danger, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
         }
+    }
+
+    if (confirmarLimpar) {
+        AlertDialog(
+            onDismissRequest = { confirmarLimpar = false },
+            title = { Text("Limpar histórico?") },
+            text = { Text("Apaga as leituras, o menor valor e os preços encontrados deste produto. O cadastro e os links continuam.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmarLimpar = false
+                    Repo.clearProductHistory(id)
+                }) { Text("Limpar", color = Pal.Danger) }
+            },
+            dismissButton = { TextButton(onClick = { confirmarLimpar = false }) { Text("Cancelar") } }
+        )
     }
 
     if (confirmarRemover) {

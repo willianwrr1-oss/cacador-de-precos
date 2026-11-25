@@ -249,7 +249,31 @@ object PriceParser {
      * O modelo precisa aparecer inteiro no título (ignorando hífens e espaços);
      * as palavras da descrição valem como confirmação adicional.
      */
+    /** Palavras típicas de acessório/peça. Se aparecem no anúncio e não na descrição, não é o produto. */
+    private val ACESSORIO = setOf(
+        "kit", "mascara", "mascaras", "refil", "refis", "peca", "pecas", "reposicao", "capa", "case", "pelicula",
+        "suporte", "cabo", "carregador", "adaptador", "filtro", "filtros", "copo", "mangueira", "compativel",
+        "bocal", "chicote", "fonte", "bateria", "acessorio", "acessorios", "bolsa", "estojo", "tampa", "parafuso"
+    )
+
+    fun isAccessory(desc: String, title: String): Boolean {
+        val d = tokens(desc).toSet()
+        return tokens(title).any { it in ACESSORIO && it !in d }
+    }
+
+    /** Anúncio parecido sem o modelo: quase todas as palavras da descrição e nada de acessório. */
+    fun similar(desc: String, title: String): Boolean {
+        if (isAccessory(desc, title)) return false
+        val tn = Txt.norm(title)
+        val want = tokens(desc)
+        if (want.isEmpty()) return false
+        if (want.filter { w -> w.any { it.isDigit() } }.any { !tn.contains(it) }) return false
+        val ok = want.count { tn.contains(it) }
+        return ok.toDouble() / want.size >= 0.8
+    }
+
     fun matches(desc: String, model: String, title: String): Boolean {
+        if (isAccessory(desc, title)) return false
         val tn = Txt.norm(title)
         val modelo = compact(model)
         if (modelo.isNotEmpty() && !compact(title).contains(modelo)) return false
