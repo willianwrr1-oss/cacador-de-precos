@@ -45,7 +45,10 @@ object Checker {
             val p = st.products.firstOrNull { it.id == id } ?: return@update st
             val status = st.status + res.status
             if (best == null) {
-                val err = if (res.status.isEmpty()) "Nenhuma fonte ativa" else "Nenhum preço encontrado"
+                val falhas = res.status.entries.filter { !it.value.ok }
+                    .joinToString("; ") { it.key + ": " + it.value.message }
+                val err = if (res.status.isEmpty()) "Nenhuma fonte ativa (confira se há link cadastrado e a loja está ligada em Fontes)"
+                else "Nenhum preço encontrado. " + falhas
                 return@update st.copy(
                     status = status,
                     products = st.products.map { if (it.id == id) it.copy(lastCheck = now, lastError = err) else it }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,6 +47,7 @@ import com.willian.cacadorprecos.data.Fmt
 import com.willian.cacadorprecos.data.ProductLink
 import com.willian.cacadorprecos.data.Repo
 import com.willian.cacadorprecos.data.Stores
+import com.willian.cacadorprecos.net.PriceParser
 import com.willian.cacadorprecos.work.Scheduler
 
 @Composable
@@ -63,6 +65,10 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
     var confirmarRemover by remember { mutableStateOf(false) }
     var descEd by remember(id) { mutableStateOf(p.name) }
     var modEd by remember(id) { mutableStateOf(p.model) }
+    var catEd by remember(id) { mutableStateOf(p.category) }
+    var alvoEd by remember(id) {
+        mutableStateOf(p.targetPrice?.let { String.format(java.util.Locale("pt", "BR"), "%.2f", it) } ?: "")
+    }
 
     val cur = p.current
     val tone = toneFor(p.changePct)
@@ -87,6 +93,11 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
             leading = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.White)
+                }
+            },
+            trailing = {
+                IconButton(onClick = { confirmarRemover = true }) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Excluir produto", tint = Color.White)
                 }
             }
         )
@@ -202,7 +213,7 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
 
             // ---- dados do produto e histórico ----
             AppCard {
-                Text("Dados do produto", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Editar produto", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                 Text(
                     "Descrição e modelo definem a busca. O modelo precisa aparecer no anúncio da loja.",
                     fontSize = 12.sp, color = Pal.Muted, lineHeight = 17.sp, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
@@ -219,21 +230,39 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                     label = { Text("Modelo") }
                 )
                 Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = catEd, onValueChange = { catEd = it },
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true,
+                    label = { Text("Categoria (opcional)") }
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = alvoEd, onValueChange = { alvoEd = it },
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true,
+                    label = { Text("Preço-alvo em R$ (opcional)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    )
+                )
+                Spacer(Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = {
                         val d = descEd.trim()
                         val m = modEd.trim()
+                        val alvo = if (alvoEd.isBlank()) null else PriceParser.parseMoney(alvoEd)
                         if (d.isEmpty() || m.isEmpty()) {
                             Toast.makeText(ctx, "Informe a descrição e o modelo", Toast.LENGTH_SHORT).show()
+                        } else if (alvoEd.isNotBlank() && alvo == null) {
+                            Toast.makeText(ctx, "Preço-alvo inválido. Exemplo: 1.599,00", Toast.LENGTH_SHORT).show()
                         } else {
-                            Repo.editProduct(id) { it.copy(name = d, model = m) }
+                            Repo.editProduct(id) { it.copy(name = d, model = m, category = catEd.trim(), targetPrice = alvo) }
                             Scheduler.runOne(ctx, id)
                             Toast.makeText(ctx, "Dados salvos. Buscando preços…", Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("Salvar dados", fontWeight = FontWeight.Bold) }
+                ) { Text("Salvar alterações", fontWeight = FontWeight.Bold) }
                 Spacer(Modifier.height(16.dp))
                 Text("Guardar o histórico por", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(
@@ -394,7 +423,7 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                 ) { Text("Abrir na loja (" + cur.store + ")", fontWeight = FontWeight.Bold) }
             }
             TextButton(onClick = { confirmarRemover = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Remover produto", color = Pal.Danger, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text("Excluir produto", color = Pal.Danger, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
         }
     }
@@ -402,14 +431,14 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
     if (confirmarRemover) {
         AlertDialog(
             onDismissRequest = { confirmarRemover = false },
-            title = { Text("Remover produto?") },
+            title = { Text("Excluir produto?") },
             text = { Text("O histórico e o menor valor registrado de " + p.name + " serão apagados.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmarRemover = false
                     Repo.removeProduct(id)
                     onBack()
-                }) { Text("Remover", color = Pal.Danger) }
+                }) { Text("Excluir", color = Pal.Danger) }
             },
             dismissButton = { TextButton(onClick = { confirmarRemover = false }) { Text("Cancelar") } }
         )

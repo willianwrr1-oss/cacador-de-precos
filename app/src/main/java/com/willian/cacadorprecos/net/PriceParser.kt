@@ -131,6 +131,19 @@ object PriceParser {
             val v = parseMoney(el.attr("content").ifBlank { el.text() })
             if (v != null) return PageInfo(title, v)
         }
+
+        // Último recurso: valores soltos no JSON embutido da página (Mercado Livre e outras)
+        val bruto = doc.select("script").joinToString("\n") { it.data() }
+        val padroes = listOf(
+            Regex(""""current_price"\s*:\s*([0-9]+(?:\.[0-9]+)?)"""),
+            Regex(""""price"\s*:\s*([0-9]+(?:\.[0-9]+)?)[,}]""")
+        )
+        for (re in padroes) {
+            val v = re.find(bruto)?.groupValues?.get(1)?.toDoubleOrNull()
+            if (v != null && v > 1.0) return PageInfo(title, v)
+        }
+        val tw = parseMoney(doc.selectFirst("meta[name=twitter:data1]")?.attr("content"))
+        if (tw != null) return PageInfo(title, tw)
         return null
     }
 

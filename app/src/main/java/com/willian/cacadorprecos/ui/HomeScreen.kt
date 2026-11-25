@@ -18,13 +18,17 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.TextButton
+import com.willian.cacadorprecos.data.Repo
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,6 +65,7 @@ fun HomeScreen(
     onRefreshOne: (String) -> Unit
 ) {
     var filter by rememberSaveable { mutableStateOf("todos") }
+    var excluir by remember { mutableStateOf<Product?>(null) }
     val lista = state.products.filter { p ->
         when (filter) {
             "queda" -> (p.changePct ?: 0.0) < -0.05
@@ -127,7 +132,10 @@ fun HomeScreen(
                 }
             }
             items(lista, key = { it.id }) { p ->
-                ProductCard(p, onClick = { onOpen(p.id) }, onRefresh = { onRefreshOne(p.id) })
+                ProductCard(
+                    p, onClick = { onOpen(p.id) }, onRefresh = { onRefreshOne(p.id) },
+                    onEdit = { onOpen(p.id) }, onDelete = { excluir = p }
+                )
             }
         }
         FloatingActionButton(
@@ -141,6 +149,21 @@ fun HomeScreen(
             Icon(Icons.Filled.Add, contentDescription = "Adicionar produto")
         }
     }
+    val alvo = excluir
+    if (alvo != null) {
+        AlertDialog(
+            onDismissRequest = { excluir = null },
+            title = { Text("Excluir produto?") },
+            text = { Text("O histórico e o menor valor registrado de " + alvo.name + " serão apagados.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    Repo.removeProduct(alvo.id)
+                    excluir = null
+                }) { Text("Excluir", color = Pal.Danger) }
+            },
+            dismissButton = { TextButton(onClick = { excluir = null }) { Text("Cancelar") } }
+        )
+    }
 }
 
 @Composable
@@ -152,7 +175,7 @@ private fun Tile(modifier: Modifier, number: String, label: String, color: Color
 }
 
 @Composable
-private fun ProductCard(p: Product, onClick: () -> Unit, onRefresh: () -> Unit) {
+private fun ProductCard(p: Product, onClick: () -> Unit, onRefresh: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val cur = p.current
     val tone = toneFor(p.changePct)
     AppCard(
@@ -169,6 +192,10 @@ private fun ProductCard(p: Product, onClick: () -> Unit, onRefresh: () -> Unit) 
                 val sub = if (cur != null) cur.store + " · lido em " + Fmt.time(cur.time) else
                     if (p.paused) "Pausado" else "Aguardando a primeira leitura"
                 Text(sub, fontSize = 12.sp, color = Pal.Muted)
+                val erro = p.lastError
+                if (cur == null && erro != null) {
+                    Text(erro, fontSize = 11.sp, color = Pal.Muted, lineHeight = 15.sp, maxLines = 3)
+                }
             }
             val ch = p.changePct
             if (ch != null) Pill(Fmt.pct(ch), tone.bg, tone.fg, Modifier.padding(top = 4.dp))
@@ -197,6 +224,11 @@ private fun ProductCard(p: Product, onClick: () -> Unit, onRefresh: () -> Unit) 
                 if (baixo) Pill("Menor preço registrado", Pal.GoldPill, Pal.GoldFg)
                 if (alerta) Pill("Alerta de queda", Pal.Teal, Color.White)
             }
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onEdit) { Text("Editar", color = Pal.Teal, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDelete) { Text("Excluir", color = Pal.Danger, fontWeight = FontWeight.Bold) }
         }
     }
 }
