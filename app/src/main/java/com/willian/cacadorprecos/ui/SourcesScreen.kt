@@ -44,6 +44,7 @@ fun SourcesScreen(state: AppState) {
     val ctx = LocalContext.current
     val s = state.settings
     var dialogo by remember { mutableStateOf(false) }
+    var editarLoja by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Header(
@@ -76,8 +77,12 @@ fun SourcesScreen(state: AppState) {
                         ) {
                             Text(st.name.take(1), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
                         }
-                        Column(Modifier.weight(1f)) {
+                        Column(Modifier.weight(1f).clickable { editarLoja = st.name }) {
                             Text(st.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                (if (s.storeUrls.containsKey(st.name)) "Link editado · " else "") + "Toque para editar o link",
+                                fontSize = 12.sp, color = Pal.Teal, fontWeight = FontWeight.SemiBold
+                            )
                             Text(
                                 nota, fontSize = 12.sp, lineHeight = 17.sp,
                                 color = if (lida != null && !lida.ok && ligada) Pal.UpFg else Pal.Muted
@@ -126,6 +131,61 @@ fun SourcesScreen(state: AppState) {
                 )
             }
         }
+    }
+
+    val lojaEd = Stores.ALL.firstOrNull { it.name == editarLoja }
+    if (lojaEd != null) {
+        var texto by remember(lojaEd.name) { mutableStateOf(Stores.template(lojaEd, s)) }
+        var erro by remember(lojaEd.name) { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { editarLoja = null },
+            title = { Text("Link de busca · " + lojaEd.name) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Endereço usado para procurar o produto nesta loja. Escreva {busca} onde entra o nome do produto.",
+                        fontSize = 13.sp, color = Pal.FlatFg, lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.size(10.dp))
+                    OutlinedTextField(
+                        value = texto,
+                        onValueChange = { texto = it; erro = null },
+                        label = { Text("Endereço de busca") },
+                        isError = erro != null,
+                        supportingText = { if (erro != null) Text(erro ?: "") },
+                        minLines = 2, maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Padrão: " + Stores.defaultTemplate(lojaEd),
+                        fontSize = 11.sp, color = Pal.Muted, lineHeight = 15.sp
+                    )
+                    if (s.storeUrls.containsKey(lojaEd.name)) {
+                        TextButton(onClick = {
+                            Repo.setSettings { it.copy(storeUrls = it.storeUrls - lojaEd.name) }
+                            editarLoja = null
+                        }) { Text("Restaurar padrão", color = Pal.Danger) }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val u = texto.trim()
+                    if (!(u.startsWith("http://") || u.startsWith("https://"))) {
+                        erro = "Comece com https://"
+                    } else if (!u.contains(Stores.MARCA)) {
+                        erro = "Inclua {busca} no endereço"
+                    } else {
+                        Repo.setSettings {
+                            if (u == Stores.defaultTemplate(lojaEd)) it.copy(storeUrls = it.storeUrls - lojaEd.name)
+                            else it.copy(storeUrls = it.storeUrls + (lojaEd.name to u))
+                        }
+                        editarLoja = null
+                    }
+                }) { Text("Salvar", color = Pal.Teal, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { editarLoja = null }) { Text("Cancelar") } }
+        )
     }
 
     if (dialogo) {

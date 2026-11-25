@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -137,10 +139,63 @@ fun DetailScreen(state: AppState, id: String, onBack: () -> Unit) {
                         Stat("Média", Fmt.money(media ?: 0.0), Modifier.weight(1f))
                         Stat("Mínimo", Fmt.money(precos.min()), Modifier.weight(1f))
                     }
-                    val err = p.lastError
-                    if (err != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Text("Última verificação sem preço: " + err, fontSize = 12.sp, color = Pal.UpFg)
+                }
+            }
+
+            // ---- preços encontrados na última busca ----
+            if (cur != null) {
+                val ofertas = p.offers.ifEmpty { listOf(cur) }
+                val menor = ofertas.first().price
+                AppCard {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("Preços encontrados", Modifier.weight(1f), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            ofertas.size.toString() + if (ofertas.size == 1) " loja" else " lojas",
+                            fontSize = 12.sp, color = Pal.Muted
+                        )
+                    }
+                    Text(
+                        "Última busca: " + Fmt.time(p.lastCheck.takeIf { it > 0 } ?: cur.time) + ". Toque em uma loja para abrir o anúncio.",
+                        fontSize = 12.sp, color = Pal.Muted, lineHeight = 17.sp, modifier = Modifier.padding(top = 2.dp)
+                    )
+                    ofertas.forEachIndexed { i, o ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 10.dp)
+                                .clickable(enabled = o.url.isNotBlank()) {
+                                    try {
+                                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(o.url)))
+                                    } catch (e: Exception) {
+                                        Toast.makeText(ctx, "Não foi possível abrir o link", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                (i + 1).toString() + "º", Modifier.width(30.dp),
+                                fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                                color = if (i == 0) Pal.Teal else Pal.Muted
+                            )
+                            Text(o.store, Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(Fmt.money(o.price), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                if (i == 0) {
+                                    Text("mais barato", fontSize = 11.sp, color = Pal.GoodFg, fontWeight = FontWeight.SemiBold)
+                                } else {
+                                    Text(
+                                        "+" + Fmt.money(o.price - menor), fontSize = 11.sp, color = Pal.Muted
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Rule()
+                    }
+                    if (ofertas.size < 3) {
+                        Text(
+                            "Menos de 3 lojas com preço nesta busca." +
+                                (p.lastError?.let { " Sem preço em: $it" } ?: ""),
+                            fontSize = 12.sp, color = Pal.UpFg, lineHeight = 17.sp, modifier = Modifier.padding(top = 8.dp)
+                        )
                     }
                 }
             }

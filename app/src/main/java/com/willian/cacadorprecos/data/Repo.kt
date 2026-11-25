@@ -66,7 +66,7 @@ object Repo {
     fun clearHistory() = update { s ->
         s.copy(
             products = s.products.map {
-                it.copy(history = emptyList(), lowest = null, lastAlertPrice = null, lastError = null)
+                it.copy(history = emptyList(), lowest = null, lastAlertPrice = null, lastError = null, offers = emptyList())
             },
             alerts = emptyList()
         )
@@ -128,6 +128,7 @@ object Repo {
         })
         o.put("hist", JSONArray().also { a -> p.history.forEach { a.put(pointToJson(it)) } })
         if (p.lowest != null) o.put("low", pointToJson(p.lowest))
+        o.put("offers", JSONArray().also { a -> p.offers.forEach { a.put(pointToJson(it)) } })
         if (p.lastAlertPrice != null) o.put("lastAlert", p.lastAlertPrice)
         o.put("lastCheck", p.lastCheck)
         if (p.lastError != null) o.put("err", p.lastError)
@@ -149,6 +150,7 @@ object Repo {
         links = o.optJSONArray("links").objs { ProductLink(it.optString("s"), it.optString("u")) },
         history = o.optJSONArray("hist").objs { pointFromJson(it) },
         lowest = o.optJSONObject("low")?.let { pointFromJson(it) },
+        offers = o.optJSONArray("offers").objs { pointFromJson(it) },
         lastAlertPrice = o.dbl("lastAlert"),
         lastCheck = o.optLong("lastCheck"),
         lastError = o.str("err")
@@ -173,6 +175,7 @@ object Repo {
                 .put("notif", st.notifications).put("quiet", st.quiet).put("open", st.openSearch)
                 .put("off", JSONArray().also { a -> st.disabledStores.forEach { a.put(it) } })
                 .put("lastRun", st.lastRun)
+                .put("urls", JSONObject().also { u -> st.storeUrls.forEach { (k, v) -> u.put(k, v) } })
         )
         val ss = JSONObject()
         s.status.forEach { (k, v) ->
@@ -197,7 +200,14 @@ object Repo {
             val off = HashSet<String>()
             val arr = so.optJSONArray("off")
             if (arr != null) for (i in 0 until arr.length()) off.add(arr.optString(i))
+            val urls = HashMap<String, String>()
+            val uj = so.optJSONObject("urls")
+            if (uj != null) {
+                val ks = uj.keys()
+                while (ks.hasNext()) { val k = ks.next(); urls[k] = uj.optString(k) }
+            }
             Settings(
+                storeUrls = urls,
                 intervalMin = so.optInt("interval", 180),
                 defaultPct = so.optInt("pct", 5),
                 notifications = so.optBoolean("notif", true),

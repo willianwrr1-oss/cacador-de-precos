@@ -39,22 +39,32 @@ object Checker {
         val res = PriceFetcher.fetch(p0, before.settings)
         val now = System.currentTimeMillis()
         val best = res.quotes.minByOrNull { it.price }
+        // um preço por loja (o menor de cada), do mais barato para o mais caro
+        val ofertas = res.quotes.groupBy { it.store }
+            .map { (_, qs) -> qs.minBy { it.price } }
+            .sortedBy { it.price }
+            .map { PricePoint(now, it.price, it.store, it.url) }
         var fired: AlertItem? = null
+
+        val falhas = res.status.entries.filter { !it.value.ok }
+            .joinToString("; ") { it.key + ": " + it.value.message }
 
         Repo.update { st ->
             val p = st.products.firstOrNull { it.id == id } ?: return@update st
             val status = st.status + res.status
             if (best == null) {
-                val falhas = res.status.entries.filter { !it.value.ok }
-                    .joinToString("; ") { it.key + ": " + it.value.message }
                 val err = if (res.status.isEmpty()) "Nenhuma fonte ativa (confira se há link cadastrado e a loja está ligada em Fontes)"
                 else "Nenhum preço encontrado. " + falhas
                 return@update st.copy(
                     status = status,
-                    products = st.products.map { if (it.id == id) it.copy(lastCheck = now, lastError = err) else it }
+                    products = st.products.map { if (it.id == id) it.copy(lastCheck = now, lastError = err, offers = emptyList()) else it }
                 )
             }
-            val (np, alert) = record(p, best, now)
+            val (np0, alert) = record(p, best, now)
+            val np = np0.copy(
+                offers = ofertas,
+                lastError = if (ofertas.size < 3 && falhas.isNotEmpty()) falhas else null
+            )
             fired = alert
             st.copy(
                 status = status,

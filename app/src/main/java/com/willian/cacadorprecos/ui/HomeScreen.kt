@@ -189,7 +189,8 @@ private fun ProductCard(p: Product, onClick: () -> Unit, onRefresh: () -> Unit, 
                 if (p.model.isNotBlank()) {
                     Text("Modelo " + p.model, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Pal.FlatFg)
                 }
-                val sub = if (cur != null) cur.store + " · lido em " + Fmt.time(cur.time) else
+                val n = p.offers.size
+                val sub = if (cur != null) cur.store + (if (n > 1) " · menor de $n lojas" else "") + " · " + Fmt.time(cur.time) else
                     if (p.paused) "Pausado" else "Aguardando a primeira leitura"
                 Text(sub, fontSize = 12.sp, color = Pal.Muted)
                 val erro = p.lastError

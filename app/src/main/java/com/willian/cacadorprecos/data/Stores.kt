@@ -59,6 +59,22 @@ object Stores {
         StoreDef("Fast Shop", "fastshop.com.br", { q -> "https://www.fastshop.com.br/web/s/" + Txt.enc(q) })
     )
 
+    const val MARCA = "{busca}"
+    private const val TOKEN = "zzbuscazz"
+
+    /** Endereço de busca padrão da loja, com {busca} no lugar do produto. */
+    fun defaultTemplate(st: StoreDef): String = st.searchUrl(TOKEN).replace(TOKEN, MARCA)
+
+    /** Endereço de busca em uso (o editado pelo usuário ou o padrão). */
+    fun template(st: StoreDef, s: Settings): String = s.storeUrls[st.name]?.takeIf { it.isNotBlank() } ?: defaultTemplate(st)
+
+    /** Monta o endereço de busca para o produto. */
+    fun searchUrl(st: StoreDef, s: Settings, q: String): String {
+        val t = s.storeUrls[st.name]?.takeIf { it.isNotBlank() } ?: return st.searchUrl(q)
+        val termo = if (t.contains("/" + MARCA) && !t.contains("=" + MARCA)) Txt.slug(q) else Txt.enc(q)
+        return if (t.contains(MARCA)) t.replace(MARCA, termo) else t + termo
+    }
+
     /** Descobre o nome da loja pelo endereço do link. */
     fun nameFor(url: String): String {
         val host = try {

@@ -48,7 +48,7 @@ object PriceFetcher {
             for (st in Stores.ALL) {
                 if (st.name in s.disabledStores || st.name in comLink) continue
                 try {
-                    val url = st.searchUrl(p.searchQuery())
+                    val url = Stores.searchUrl(st, s, p.searchQuery())
                     val html = try {
                         Http.get(url)
                     } catch (e: Exception) {

@@ -37,7 +37,9 @@ data class Product(
     val lowest: PricePoint? = null,
     val lastAlertPrice: Double? = null,
     val lastCheck: Long = 0L,
-    val lastError: String? = null
+    val lastError: String? = null,
+    /** Preços encontrados na última busca, um por loja, do menor para o maior. */
+    val offers: List<PricePoint> = emptyList()
 ) {
     val current: PricePoint? get() = history.lastOrNull()
 
@@ -79,6 +81,8 @@ data class Settings(
     val quiet: Boolean = false,
     val openSearch: Boolean = true,
     val disabledStores: Set<String> = emptySet(),
+    /** Endereço de busca editado pelo usuário, por loja. {busca} é trocado pelo produto. */
+    val storeUrls: Map<String, String> = emptyMap(),
     val lastRun: Long = 0L
 )
 
