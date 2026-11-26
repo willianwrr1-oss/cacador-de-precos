@@ -41,7 +41,7 @@ object Checker {
         // alerta e histórico usam anúncios confirmados pelo modelo; parecidos só entram se não houver nenhum
         val best = res.quotes.filter { !it.similar }.minByOrNull { it.price } ?: res.quotes.minByOrNull { it.price }
         // um preço por loja (o menor de cada), do mais barato para o mais caro
-        val ofertas = res.quotes.groupBy { it.store }
+        val ofertas = res.quotes.groupBy { if (it.url.isNotBlank()) it.url else it.store }
             .map { (_, qs) -> qs.minBy { it.price } }
             .sortedBy { it.price }
             .map { PricePoint(now, it.price, it.store, it.url, it.title) }

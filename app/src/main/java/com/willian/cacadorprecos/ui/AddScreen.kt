@@ -94,9 +94,10 @@ fun AddScreen(state: AppState, onClose: () -> Unit, onSaved: () -> Unit) {
             )
             OutlinedTextField(
                 value = link, onValueChange = { link = it; erro = null },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, shape = forma,
-                label = { Text("Link de uma loja (opcional)") },
-                placeholder = { Text("Cole o endereço da página do produto") }
+                modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 6, shape = forma,
+                label = { Text("Links das lojas (opcional)") },
+                placeholder = { Text("Cole um ou mais endereços, um por linha") },
+                supportingText = { Text("Pode colar vários links, de lojas iguais ou diferentes. Cada um é lido direto.") }
             )
             OutlinedTextField(
                 value = alvo, onValueChange = { alvo = it; erro = null },
@@ -121,7 +122,7 @@ fun AddScreen(state: AppState, onClose: () -> Unit, onSaved: () -> Unit) {
                 KeepPicker(guardar) { guardar = it }
             }
             AppCard(padding = 16.dp) {
-                SwitchRow("Fontes cadastradas", "Lê o link informado acima", reg, { reg = it })
+                SwitchRow("Fontes cadastradas", "Lê os links informados acima", reg, { reg = it })
                 Rule()
                 SwitchRow("Busca em grandes lojas", "Só varejistas de grande porte", aberta, { aberta = it })
             }
@@ -137,14 +138,14 @@ fun AddScreen(state: AppState, onClose: () -> Unit, onSaved: () -> Unit) {
                     onClick = {
                         val n = nome.trim()
                         val m = modelo.trim()
-                        val l = link.trim()
+                        val lista = link.split(Regex("\\s+")).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
                         val a = if (alvo.isBlank()) null else PriceParser.parseMoney(alvo)
                         if (n.isEmpty()) {
                             erro = "Informe a descrição do produto."
                         } else if (m.isEmpty()) {
                             erro = "Informe o modelo do produto. Ele garante que a busca ache o item certo."
-                        } else if (l.isNotEmpty() && !(l.startsWith("http://") || l.startsWith("https://"))) {
-                            erro = "O link precisa começar com https://"
+                        } else if (lista.any { !(it.startsWith("http://") || it.startsWith("https://")) }) {
+                            erro = "Cada link precisa começar com https:// (um por linha)"
                         } else if (alvo.isNotBlank() && a == null) {
                             erro = "Preço-alvo inválido. Exemplo: 1.599,00"
                         } else {
@@ -158,7 +159,7 @@ fun AddScreen(state: AppState, onClose: () -> Unit, onSaved: () -> Unit) {
                                 alertPct = pct,
                                 searchRegistered = reg,
                                 searchOpen = aberta,
-                                links = if (l.isEmpty()) emptyList() else listOf(ProductLink(Stores.nameFor(l), l))
+                                links = lista.map { ProductLink(Stores.nameFor(it), it) }
                             )
                             Repo.addProduct(p)
                             Scheduler.runOne(ctx, p.id)

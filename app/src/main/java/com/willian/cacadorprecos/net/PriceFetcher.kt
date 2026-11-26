@@ -60,14 +60,14 @@ object PriceFetcher {
                     var exatos = todos.filter { PriceParser.matches(p.name, p.model, it.title) }
                     if (exatos.isEmpty()) {
                         exatos = todos.filter {
-                            !PriceParser.isAccessory(p.name, it.title) &&
+                            !PriceParser.rejected(p.name, p.model, it.title) &&
                                 PriceParser.hasModel(p.model, it.card) &&
                                 PriceParser.descScore(p.name, p.model, it.title) >= 0.4
                         }
                     }
                     if (exatos.isEmpty()) {
                         val candidatos = todos
-                            .filter { !PriceParser.isAccessory(p.name, it.title) && it.url.startsWith("http") && it.url != url }
+                            .filter { !PriceParser.rejected(p.name, p.model, it.title) && it.url.startsWith("http") && it.url != url }
                             .map { it to PriceParser.descScore(p.name, p.model, it.title) }
                             .filter { it.second >= 0.5 }
                             .sortedByDescending { it.second }
@@ -163,12 +163,25 @@ object PriceFetcher {
                 return false
             }
         }
-        val texto = try {
-            org.jsoup.Jsoup.parse(html).text()
+        // Só o produto principal: título da página e ficha técnica. Vitrines de "produtos relacionados"
+        // e o termo pesquisado guardado no código da página não contam.
+        return try {
+            val doc = org.jsoup.Jsoup.parse(html)
+            doc.select("script, style, noscript").remove()
+            val partes = ArrayList<String>()
+            partes.add(doc.select("h1").text())
+            doc.select(
+                "table, dl, [class*=spec], [class*=Spec], [class*=ficha], [class*=caracter], [class*=Caracter], " +
+                    "[class*=tecnic], [class*=Tecnic], [class*=attribute], [class*=Attribute], [id*=spec], [id*=detail]"
+            ).forEach { el ->
+                if (el.select("[class*=related], [class*=carousel], [class*=recommend], [class*=shelf]").isEmpty()) {
+                    partes.add(el.text())
+                }
+            }
+            PriceParser.hasModel(model, partes.joinToString(" "))
         } catch (e: Exception) {
-            html
+            false
         }
-        return PriceParser.hasModel(model, texto) || PriceParser.hasModel(model, html)
     }
 
     /** Descarta preços muito fora do que o produto costuma custar (acessórios, peças, erros). */

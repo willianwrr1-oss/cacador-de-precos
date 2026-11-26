@@ -277,7 +277,7 @@ object PriceParser {
 
     /** Anúncio parecido sem o modelo: quase todas as palavras da descrição e nada de acessório. */
     fun similar(desc: String, title: String): Boolean {
-        if (isAccessory(desc, title)) return false
+        if (rejected(desc, "", title)) return false
         val tn = Txt.norm(title)
         val want = tokens(desc)
         if (want.isEmpty()) return false
@@ -285,6 +285,36 @@ object PriceParser {
         val ok = want.count { tn.contains(it) }
         return ok.toDouble() / want.size >= 0.8
     }
+
+    /** Código que parece modelo de outro produto (ex.: S3-Q09AA31F quando o cadastrado é LP1419IVSM). */
+    fun foreignModel(model: String, title: String): Boolean {
+        val m = compact(model)
+        if (m.isEmpty()) return false
+        for (raw in title.split(Regex("[\\s,;/()|]+"))) {
+            val t = compact(raw)
+            if (t.length < 6) continue
+            var trocas = 0
+            for (i in 1 until t.length) if (t[i].isDigit() != t[i - 1].isDigit()) trocas++
+            if (trocas < 2) continue
+            if (t.contains(m) || m.contains(t)) continue
+            return true
+        }
+        return false
+    }
+
+    private fun numeros(s: String): List<String> =
+        Regex("""\d{1,3}(?:\.\d{3})+|\d+""").findAll(s).map { it.value.replace(".", "") }.toList()
+
+    /** Números da descrição (BTU, litros, polegadas, GB...) precisam aparecer no anúncio. */
+    fun numbersOk(desc: String, model: String, title: String): Boolean {
+        val m = compact(model)
+        val tc = compact(title)
+        return numeros(desc).filter { it.length >= 2 && !m.contains(it) }.all { tc.contains(it) }
+    }
+
+    /** Descarta acessório, outro modelo ou número diferente (ex.: 9000 BTU no lugar de 14000). */
+    fun rejected(desc: String, model: String, title: String): Boolean =
+        isAccessory(desc, title) || foreignModel(model, title) || !numbersOk(desc, model, title)
 
     /** O modelo aparece em algum lugar do texto (ignorando espaços, hífens e pontos)? */
     fun hasModel(model: String, text: String): Boolean {
@@ -302,7 +332,7 @@ object PriceParser {
     }
 
     fun matches(desc: String, model: String, title: String): Boolean {
-        if (isAccessory(desc, title)) return false
+        if (rejected(desc, model, title)) return false
         val tn = Txt.norm(title)
         val modelo = compact(model)
         if (modelo.isNotEmpty() && !compact(title).contains(modelo)) return false
