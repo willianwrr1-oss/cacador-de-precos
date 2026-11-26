@@ -22,7 +22,7 @@ android {
         targetSdk = 34
         // sobe a cada build do GitHub Actions
         versionCode = maxOf(1, (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt())
-        versionName = "1.4.0"
+        versionName = "1.5.0"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 

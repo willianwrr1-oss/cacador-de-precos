@@ -14,7 +14,8 @@ import java.net.URL
 object PriceParser {
 
     data class PageInfo(val title: String, val price: Double)
-    data class Hit(val title: String, val price: Double, val url: String)
+    /** [card] = todo o texto do cartão do anúncio (o modelo às vezes está fora do título). */
+    data class Hit(val title: String, val price: Double, val url: String, val card: String = "")
 
     // ---------- valores ----------
 
@@ -206,7 +207,8 @@ object PriceParser {
                     ?: el.selectFirst("a[href]")
                 val href = link?.absUrl("href").orEmpty()
                 if (title.isNotBlank() && price != null) {
-                    out.add(Hit(title, price, href.ifBlank { baseUrl }))
+                    val extra = el.select("[aria-label], [title]").joinToString(" ") { it.attr("aria-label") + " " + it.attr("title") }
+                    out.add(Hit(title, price, href.ifBlank { baseUrl }, (el.text() + " " + extra).take(1500)))
                 }
             }
         }
@@ -226,12 +228,14 @@ object PriceParser {
             var node: Element? = a
             var price: Double? = null
             var depth = 0
+            var card = ""
             while (node != null && depth < 5) {
                 val t = node.text()
                 if (t.length < 700) {
                     val m = reMoney.find(t)
                     if (m != null) {
                         price = parseMoney(m.value)
+                        card = t
                         break
                     }
                 }
@@ -239,7 +243,7 @@ object PriceParser {
                 depth++
             }
             val href = a.absUrl("href")
-            if (price != null && href.isNotBlank()) out.add(Hit(title, price, href))
+            if (price != null && href.isNotBlank()) out.add(Hit(title, price, href, card))
             if (out.size >= 60) break
         }
         return out
@@ -280,6 +284,21 @@ object PriceParser {
         if (want.filter { w -> w.any { it.isDigit() } }.any { !tn.contains(it) }) return false
         val ok = want.count { tn.contains(it) }
         return ok.toDouble() / want.size >= 0.8
+    }
+
+    /** O modelo aparece em algum lugar do texto (ignorando espaços, hífens e pontos)? */
+    fun hasModel(model: String, text: String): Boolean {
+        val m = compact(model)
+        return m.isNotEmpty() && compact(text).contains(m)
+    }
+
+    /** Quanto do texto da descrição aparece no título (0 a 1), sem contar o modelo. */
+    fun descScore(desc: String, model: String, title: String): Double {
+        val tn = Txt.norm(title)
+        val doModelo = tokens(model).toSet()
+        val want = tokens(desc).filter { it !in doModelo && !hasModel(model, it) }
+        if (want.isEmpty()) return 1.0
+        return want.count { tn.contains(it) }.toDouble() / want.size
     }
 
     fun matches(desc: String, model: String, title: String): Boolean {

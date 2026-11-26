@@ -56,7 +56,30 @@ object PriceFetcher {
                         WebHtml.get(url)
                     }
                     val todos = PriceParser.parseSearch(html, url, st).filter { plausivel(it.price, ref) }
-                    val exatos = todos.filter { PriceParser.matches(p.name, p.model, it.title) }
+                    // 1) modelo no título  2) modelo no texto do cartão  3) modelo dentro da página do anúncio
+                    var exatos = todos.filter { PriceParser.matches(p.name, p.model, it.title) }
+                    if (exatos.isEmpty()) {
+                        exatos = todos.filter {
+                            !PriceParser.isAccessory(p.name, it.title) &&
+                                PriceParser.hasModel(p.model, it.card) &&
+                                PriceParser.descScore(p.name, p.model, it.title) >= 0.4
+                        }
+                    }
+                    if (exatos.isEmpty()) {
+                        val candidatos = todos
+                            .filter { !PriceParser.isAccessory(p.name, it.title) && it.url.startsWith("http") && it.url != url }
+                            .map { it to PriceParser.descScore(p.name, p.model, it.title) }
+                            .filter { it.second >= 0.5 }
+                            .sortedByDescending { it.second }
+                            .take(3)
+                            .map { it.first }
+                        val conferidos = ArrayList<PriceParser.Hit>()
+                        for (c in candidatos) {
+                            if (paginaTemModelo(c.url, p.model)) conferidos.add(c)
+                            delay(400)
+                        }
+                        exatos = conferidos
+                    }
                     val parecidos = if (exatos.isEmpty() && p.allowSimilar) todos.filter { PriceParser.similar(p.name, it.title) } else emptyList()
                     val best = exatos.minByOrNull { it.price }
                     val similar = parecidos.minByOrNull { it.price }
@@ -67,11 +90,13 @@ object PriceFetcher {
                         quotes.add(Quote(st.name + " (similar)", similar.price, similar.url, similar.title, true))
                         status[st.name] = StoreStatus(true, now, "Só anúncio parecido, sem o modelo no título")
                     } else if (todos.isEmpty()) {
-                        status[st.name] = StoreStatus(false, now, "Nenhum anúncio lido na página")
+                        val tit = org.jsoup.Jsoup.parse(html).title().take(50)
+                        status[st.name] = StoreStatus(false, now, "Nenhum anúncio lido na página \"" + tit + "\"")
                     } else {
                         status[st.name] = StoreStatus(
                             false, now,
-                            todos.size.toString() + " anúncios, nenhum com o modelo " + p.model + " no título"
+                            todos.size.toString() + " anúncios, nenhum com o modelo " + p.model +
+                                ". Ex.: \"" + todos.first().title.take(45) + "\""
                         )
                     }
                 } catch (e: Exception) {
@@ -125,6 +150,25 @@ object PriceFetcher {
         }
         if (falha != null) throw falha
         return null
+    }
+
+    /** Abre a página do anúncio e confere se o modelo aparece nela (ficha técnica, descrição). */
+    private suspend fun paginaTemModelo(url: String, model: String): Boolean {
+        val html = try {
+            Http.get(url)
+        } catch (e: Exception) {
+            try {
+                WebHtml.get(url)
+            } catch (x: Exception) {
+                return false
+            }
+        }
+        val texto = try {
+            org.jsoup.Jsoup.parse(html).text()
+        } catch (e: Exception) {
+            html
+        }
+        return PriceParser.hasModel(model, texto) || PriceParser.hasModel(model, html)
     }
 
     /** Descarta preços muito fora do que o produto costuma custar (acessórios, peças, erros). */
